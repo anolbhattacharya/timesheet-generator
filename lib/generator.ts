@@ -1,4 +1,4 @@
-import { format, subDays, isWeekend, parseISO } from 'date-fns';
+import { format, subDays, isWeekend, parseISO, eachDayOfInterval } from 'date-fns';
 import { TimesheetEntry, EmployeeLeaveMap, DayStatus } from '@/types';
 import { EMPLOYEES } from './employees';
 import { PROJECTS } from './projects';
@@ -34,6 +34,13 @@ export function getLast15Days(endDate: Date = new Date()): string[] {
   return days;
 }
 
+export function getDateRange(startDate: string, endDate: string): string[] {
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
+  const days = eachDayOfInterval({ start, end });
+  return days.map((d) => format(d, 'yyyy-MM-dd'));
+}
+
 export function getDayStatus(
   dateStr: string,
   employeeId: string,
@@ -65,10 +72,10 @@ export function isWorkingDay(
 
 export function generateTimesheet(
   leaveMap: EmployeeLeaveMap,
-  endDate: Date = new Date()
+  dates: string[]
 ): TimesheetEntry[] {
   const entries: TimesheetEntry[] = [];
-  const days = getLast15Days(endDate);
+  const days = dates;
 
   for (const employee of EMPLOYEES) {
     for (const dateStr of days) {

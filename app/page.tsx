@@ -1,15 +1,25 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { format, parseISO, isWeekend } from 'date-fns';
+import { format, parseISO, isWeekend, subDays } from 'date-fns';
 import { TimesheetEntry, EmployeeLeaveMap } from '@/types';
 import { EMPLOYEES } from '@/lib/employees';
 import { isHoliday, getHolidayName } from '@/lib/holidays';
-import { generateTimesheet, getLast15Days } from '@/lib/generator';
+import { generateTimesheet, getDateRange } from '@/lib/generator';
+import DateRangePicker from '@/components/DateRangePicker';
 import LeaveInput from '@/components/LeaveInput';
 import CalendarGrid from '@/components/CalendarGrid';
 import TimesheetPreview from '@/components/TimesheetPreview';
 import ExportButtons from '@/components/ExportButtons';
+
+function getDefaultDates() {
+  const today = new Date();
+  const start = subDays(today, 14);
+  return {
+    startDate: format(start, 'yyyy-MM-dd'),
+    endDate: format(today, 'yyyy-MM-dd'),
+  };
+}
 
 export default function Home() {
   const [entries, setEntries] = useState<TimesheetEntry[]>([]);
@@ -22,10 +32,20 @@ export default function Home() {
   });
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const dates = useMemo(() => getLast15Days(), []);
+  const defaultDates = useMemo(() => getDefaultDates(), []);
+  const [startDate, setStartDate] = useState(defaultDates.startDate);
+  const [endDate, setEndDate] = useState(defaultDates.endDate);
 
-  const startDate = dates[0];
-  const endDate = dates[dates.length - 1];
+  const dates = useMemo(
+    () => getDateRange(startDate, endDate),
+    [startDate, endDate]
+  );
+
+  const handleResetDates = useCallback(() => {
+    const defaults = getDefaultDates();
+    setStartDate(defaults.startDate);
+    setEndDate(defaults.endDate);
+  }, []);
 
   const getDayInfo = useCallback((date: string) => {
     const parsedDate = parseISO(date);
@@ -63,13 +83,12 @@ export default function Home() {
 
   const handleGenerate = useCallback(() => {
     setIsGenerating(true);
-    // Small delay to show loading state
     setTimeout(() => {
-      const newEntries = generateTimesheet(leaveMap);
+      const newEntries = generateTimesheet(leaveMap, dates);
       setEntries(newEntries);
       setIsGenerating(false);
     }, 300);
-  }, [leaveMap]);
+  }, [leaveMap, dates]);
 
   const workingDaysCount = useMemo(() => {
     return dates.filter((date) => {
@@ -100,21 +119,25 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Report Period Info */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6 border border-gray-200">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <span className="text-gray-500">Report Period:</span>{' '}
-              <span className="font-medium text-gray-800">
-                {format(parseISO(startDate), 'MMM d, yyyy')} to{' '}
-                {format(parseISO(endDate), 'MMM d, yyyy')}
-              </span>
-              <span className="text-gray-400 ml-2">(15 days)</span>
-            </div>
-            <div className="text-sm text-gray-600">
-              <span className="font-medium text-working">{workingDaysCount}</span>{' '}
-              working days
-            </div>
+        {/* Date Range Picker */}
+        <DateRangePicker
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          onReset={handleResetDates}
+        />
+
+        {/* Working Days Info */}
+        <div className="bg-blue-50 rounded-lg p-3 mb-6 border border-blue-200">
+          <div className="flex items-center justify-between">
+            <span className="text-blue-700">
+              <span className="font-semibold">{workingDaysCount}</span> working
+              days in selected range
+            </span>
+            <span className="text-sm text-blue-600">
+              (excludes weekends, holidays, and marked leaves)
+            </span>
           </div>
         </div>
 
@@ -153,7 +176,7 @@ export default function Home() {
 
         {/* Footer */}
         <footer className="mt-8 text-center text-sm text-gray-400">
-          AI Lab Team Timesheet Generator v1.0
+          AI Lab Team Timesheet Generator v1.1
         </footer>
       </div>
     </main>
