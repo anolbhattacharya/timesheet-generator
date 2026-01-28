@@ -1,0 +1,68 @@
+import { Employee } from '@/types';
+
+export const EMPLOYEES: Employee[] = [
+  {
+    id: 'sumit',
+    name: 'Sumit',
+    role: 'Backend/DevOps Engineer',
+    skills: ['MongoDB', 'NodeJS', 'DevOps'],
+    taskCategories: [
+      'Database schema design and optimization',
+      'API endpoint development and integration',
+      'Server configuration and deployment',
+      'CI/CD pipeline maintenance',
+      'Performance monitoring and optimization',
+      'Code review and documentation',
+      'Infrastructure setup and management',
+      'Security configuration and hardening',
+    ],
+  },
+  {
+    id: 'abhishek',
+    name: 'Abhishek',
+    role: 'AI Developer',
+    skills: ['Python', 'AI Development'],
+    taskCategories: [
+      'AI model development and training',
+      'Python script development',
+      'Data preprocessing and analysis',
+      'Algorithm optimization',
+      'Model testing and validation',
+      'Research and experimentation',
+      'Technical documentation',
+      'Code optimization and refactoring',
+    ],
+  },
+  {
+    id: 'dhirendra',
+    name: 'Dhirendra',
+    role: 'AI Developer',
+    skills: ['Python', 'AI Development'],
+    taskCategories: [
+      'AI model development and training',
+      'Python script development',
+      'Data preprocessing and analysis',
+      'Algorithm optimization',
+      'Model testing and validation',
+      'Research and experimentation',
+      'Technical documentation',
+      'Code optimization and refactoring',
+    ],
+  },
+  {
+    id: 'rajan',
+    name: 'Rajan',
+    role: 'Frontend Developer',
+    skills: ['CSS', 'React', 'Frontend'],
+    taskCategories: [
+      'React component development',
+      'CSS styling and responsive design',
+      'UI/UX implementation',
+      'Frontend testing',
+      'Cross-browser compatibility fixes',
+      'Performance optimization',
+      'Accessibility improvements',
+      'Component library maintenance',
+    ],
+  },
+];
