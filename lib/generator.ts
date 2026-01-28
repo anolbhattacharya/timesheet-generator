@@ -25,6 +25,13 @@ function getRandomTask(taskCategories: string[]): string {
   return taskCategories[Math.floor(Math.random() * taskCategories.length)];
 }
 
+function getRandomDailyHours(): number {
+  // Random hours between 7.5 and 14, rounded to 0.5
+  const minHours = 7.5;
+  const maxHours = 14;
+  return roundToHalf(minHours + Math.random() * (maxHours - minHours));
+}
+
 export function getLast15Days(endDate: Date = new Date()): string[] {
   const days: string[] = [];
   for (let i = 14; i >= 0; i--) {
@@ -83,7 +90,8 @@ export function generateTimesheet(
         continue;
       }
 
-      let remainingHours = 8;
+      const dailyTotal = getRandomDailyHours();
+      let remainingHours = dailyTotal;
       const shuffledProjects = shuffleArray(PROJECTS);
 
       for (let i = 0; i < shuffledProjects.length; i++) {
@@ -96,13 +104,16 @@ export function generateTimesheet(
         } else {
           // Ensure each remaining project gets at least 1 hour
           const projectsRemaining = shuffledProjects.length - i;
-          const maxHours = Math.min(6, remainingHours - (projectsRemaining - 1));
+          const maxHoursForProject = Math.min(
+            dailyTotal * 0.6, // Max 60% of daily total for one project
+            remainingHours - (projectsRemaining - 1)
+          );
           const minHours = 1;
 
-          if (maxHours <= minHours) {
+          if (maxHoursForProject <= minHours) {
             hours = minHours;
           } else {
-            hours = roundToHalf(minHours + Math.random() * (maxHours - minHours));
+            hours = roundToHalf(minHours + Math.random() * (maxHoursForProject - minHours));
           }
         }
 
