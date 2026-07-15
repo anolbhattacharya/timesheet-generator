@@ -2,7 +2,6 @@ import * as XLSX from 'xlsx';
 import { TimesheetEntry } from '@/types';
 import { EMPLOYEES } from './employees';
 import { PROJECTS } from './projects';
-import { CAPEX_RATIO_MIN, CAPEX_RATIO_MAX } from './generator';
 
 interface SummaryRow {
   Employee: string;
@@ -127,15 +126,6 @@ export function exportAnalysisToExcel(entries: TimesheetEntry[]): void {
   const capex = sumHours(entries.filter((e) => e.costType === 'CAPEX'));
   const opex = sumHours(entries.filter((e) => e.costType === 'OPEX'));
 
-  const dates = entries.map((e) => e.date).sort();
-  const rangeLabel =
-    dates.length > 0 ? `${dates[0]} to ${dates[dates.length - 1]}` : 'no data';
-  // Capitalisation policy is a month-to-month range, not a single rate.
-  const capMinPct = Math.round(CAPEX_RATIO_MIN * 1000) / 10; // e.g. 65
-  const capMaxPct = Math.round(CAPEX_RATIO_MAX * 1000) / 10; // e.g. 72
-  const opexMinPct = Math.round((1 - CAPEX_RATIO_MAX) * 1000) / 10; // e.g. 28
-  const opexMaxPct = Math.round((1 - CAPEX_RATIO_MIN) * 1000) / 10; // e.g. 35
-
   // ---------- Sheet 1: CapEx vs OpEx analysis ----------
   const aoa: (string | number)[][] = [];
   const pctCells: string[] = [];
@@ -143,14 +133,6 @@ export function exportAnalysisToExcel(entries: TimesheetEntry[]): void {
   // mark a column in the row just pushed as a percentage-formatted cell
   const markPct = (col: number) =>
     pctCells.push(XLSX.utils.encode_cell({ r: aoa.length - 1, c: col }));
-
-  addRow([
-    `AI Lab Timesheet — CapEx (IP) vs OpEx Analysis (${capMinPct}-${capMaxPct} / ${opexMinPct}-${opexMaxPct} Capitalisation Policy)`,
-  ]);
-  addRow([
-    `Management policy: ${capMinPct}-${capMaxPct}% of AI Lab development effort is capitalised as IP (AASB 138), ${opexMinPct}-${opexMaxPct}% expensed as OpEx. The rate varies month to month within this range. Covers ${rangeLabel}.`,
-  ]);
-  addRow([]);
 
   addRow(['Hours by Classification']);
   addRow(['Classification', 'Hours', '% of Total']);
