@@ -28,8 +28,9 @@ product will be added later and is intentionally not modelled yet.
 
 ## IP capitalisation (AASB 138)
 
-Every task category is tagged as **CAPEX** or **OPEX** so total hours aggregate to a
-target split of **68% capitalised as intellectual property / 32% OpEx**:
+Every task category is tagged as **CAPEX** or **OPEX**. The capitalisation rate
+**varies month to month** within a policy range of **65–72% capitalised as IP /
+28–35% OpEx** — each calendar month gets its own target inside that band:
 
 - **CAPEX — Capitalised (IP):** development-phase work that creates new product
   capability. Capitalised under AASB 138.57 when the six criteria are met.
@@ -48,10 +49,12 @@ Task categories and their tags are defined in [`lib/employees.ts`](lib/employees
 2. The day's hours are split across products with a **largest-remainder** method so
    the parts always sum exactly to the daily total and track the 30/10/60 weights.
 3. Each product chunk is divided into CAPEX/OPEX carrying the rounding residual
-   forward across the whole run (error feedback), so the CAPEX total converges on 68%
-   rather than biasing on each small chunk.
+   forward **per month** (error feedback), so each month's CAPEX total converges on
+   that month's target (a random value in 65–72%) rather than biasing on each chunk.
 
 Result: aggregates land within ~1% of every target, and all sub-totals reconcile.
+The `CapEx vs OpEx` export sheet includes an **Hours by Month and Classification**
+breakdown showing the rate for each month.
 
 ## Exports
 

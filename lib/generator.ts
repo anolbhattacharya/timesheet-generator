@@ -12,9 +12,16 @@ import { EMPLOYEES } from './employees';
 import { PROJECTS } from './projects';
 import { isHoliday, getHolidayName } from './holidays';
 
-// Target share of total hours capitalised as intellectual property (AASB 138.57).
-// The remainder (1 - CAPEX_RATIO) is OpEx expensed as incurred.
-export const CAPEX_RATIO = 0.68;
+// Capitalisation policy: the share of hours capitalised as intellectual property
+// (AASB 138.57) varies month to month within this range; the rest is OpEx expensed
+// as incurred. CapEx 65-72%  <=>  OpEx 28-35%.
+export const CAPEX_RATIO_MIN = 0.65;
+export const CAPEX_RATIO_MAX = 0.72;
+
+// Each calendar month gets its own CapEx target somewhere in the policy range.
+function pickMonthlyCapexRatio(): number {
+  return CAPEX_RATIO_MIN + Math.random() * (CAPEX_RATIO_MAX - CAPEX_RATIO_MIN);
+}
 
 function roundToHalf(num: number): number {
   return Math.round(num * 2) / 2;
@@ -123,15 +130,24 @@ export function generateTimesheet(
   const entries: TimesheetEntry[] = [];
   const weights = PROJECTS.map((p) => p.allocationWeight);
 
-  // Running rounding residual so the CAPEX total converges on CAPEX_RATIO across the
-  // whole run rather than rounding independently (and biasing) on each small chunk.
-  let capexCarry = 0;
+  // Per-month CapEx target (varies within the policy range) and a per-month rounding
+  // residual so each month's CapEx total converges on its own target rather than
+  // rounding independently (and biasing) on each small chunk.
+  const monthTarget: Record<string, number> = {};
+  const monthCarry: Record<string, number> = {};
 
   for (const employee of EMPLOYEES) {
     for (const dateStr of dates) {
       if (!isWorkingDay(dateStr, employee.id, leaveMap)) {
         continue;
       }
+
+      const month = dateStr.slice(0, 7); // YYYY-MM
+      if (monthTarget[month] === undefined) {
+        monthTarget[month] = pickMonthlyCapexRatio();
+        monthCarry[month] = 0;
+      }
+      const capexRatio = monthTarget[month];
 
       const dailyTotal = getRandomDailyHours();
       const projectHours = splitHoursByWeights(dailyTotal, weights);
@@ -141,14 +157,14 @@ export function generateTimesheet(
         if (chunk <= 0) return;
 
         // Divide the project's hours into CAPEX / OPEX, carrying the residual forward.
-        const idealCapex = chunk * CAPEX_RATIO + capexCarry;
+        const idealCapex = chunk * capexRatio + monthCarry[month];
         const maxHalves = Math.round(chunk / 0.5);
         let capexHalves = Math.round(idealCapex / 0.5);
         if (capexHalves < 0) capexHalves = 0;
         if (capexHalves > maxHalves) capexHalves = maxHalves;
 
         const capexHours = capexHalves * 0.5;
-        capexCarry = idealCapex - capexHours;
+        monthCarry[month] = idealCapex - capexHours;
         const opexHours = chunk - capexHours;
 
         if (capexHours > 0) {

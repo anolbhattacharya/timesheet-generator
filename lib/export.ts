@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx';
 import { TimesheetEntry } from '@/types';
 import { EMPLOYEES } from './employees';
 import { PROJECTS } from './projects';
-import { CAPEX_RATIO } from './generator';
+import { CAPEX_RATIO_MIN, CAPEX_RATIO_MAX } from './generator';
 
 interface SummaryRow {
   Employee: string;
@@ -130,8 +130,11 @@ export function exportAnalysisToExcel(entries: TimesheetEntry[]): void {
   const dates = entries.map((e) => e.date).sort();
   const rangeLabel =
     dates.length > 0 ? `${dates[0]} to ${dates[dates.length - 1]}` : 'no data';
-  const policyPct = Math.round(CAPEX_RATIO * 1000) / 10; // e.g. 68
-  const opexPolicyPct = Math.round((1 - CAPEX_RATIO) * 1000) / 10; // e.g. 32
+  // Capitalisation policy is a month-to-month range, not a single rate.
+  const capMinPct = Math.round(CAPEX_RATIO_MIN * 1000) / 10; // e.g. 65
+  const capMaxPct = Math.round(CAPEX_RATIO_MAX * 1000) / 10; // e.g. 72
+  const opexMinPct = Math.round((1 - CAPEX_RATIO_MAX) * 1000) / 10; // e.g. 28
+  const opexMaxPct = Math.round((1 - CAPEX_RATIO_MIN) * 1000) / 10; // e.g. 35
 
   // ---------- Sheet 1: CapEx vs OpEx analysis ----------
   const aoa: (string | number)[][] = [];
@@ -142,14 +145,15 @@ export function exportAnalysisToExcel(entries: TimesheetEntry[]): void {
     pctCells.push(XLSX.utils.encode_cell({ r: aoa.length - 1, c: col }));
 
   addRow([
-    `AI Lab Timesheet — CapEx (IP) vs OpEx Analysis (${policyPct} / ${opexPolicyPct} Capitalisation Policy)`,
+    `AI Lab Timesheet — CapEx (IP) vs OpEx Analysis (${capMinPct}-${capMaxPct} / ${opexMinPct}-${opexMaxPct} Capitalisation Policy)`,
   ]);
   addRow([
-    `Management policy: ${policyPct}% of AI Lab development effort is capitalised as IP (AASB 138), ${opexPolicyPct}% expensed as OpEx. Covers ${rangeLabel}.`,
+    `Management policy: ${capMinPct}-${capMaxPct}% of AI Lab development effort is capitalised as IP (AASB 138), ${opexMinPct}-${opexMaxPct}% expensed as OpEx. The rate varies month to month within this range. Covers ${rangeLabel}.`,
   ]);
   addRow([]);
-  addRow(['Target Capitalisation Rate', CAPEX_RATIO]);
+  addRow(['Target Capitalisation Rate (CapEx)', CAPEX_RATIO_MIN, CAPEX_RATIO_MAX]);
   markPct(1);
+  markPct(2);
   addRow([]);
 
   addRow(['Hours by Classification']);
@@ -160,6 +164,23 @@ export function exportAnalysisToExcel(entries: TimesheetEntry[]): void {
   markPct(2);
   addRow(['TOTAL', total, total > 0 ? 1 : 0]);
   markPct(2);
+  addRow([]);
+  addRow([]);
+
+  // Month-to-month capitalisation — the rate that varies within the policy range.
+  addRow(['Hours by Month and Classification']);
+  addRow(['Month', 'CapEx (IP)', 'OpEx', 'Total', 'CapEx %']);
+  const months = Array.from(new Set(entries.map((e) => e.date.slice(0, 7)))).sort();
+  for (const month of months) {
+    const monthEntries = entries.filter((e) => e.date.slice(0, 7) === month);
+    const mCap = sumHours(monthEntries.filter((e) => e.costType === 'CAPEX'));
+    const mOpex = sumHours(monthEntries.filter((e) => e.costType === 'OPEX'));
+    const mTotal = round2(mCap + mOpex);
+    addRow([month, mCap, mOpex, mTotal, mTotal > 0 ? mCap / mTotal : 0]);
+    markPct(4);
+  }
+  addRow(['TOTAL', capex, opex, total, total > 0 ? capex / total : 0]);
+  markPct(4);
   addRow([]);
   addRow([]);
 

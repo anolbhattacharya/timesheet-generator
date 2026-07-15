@@ -153,7 +153,8 @@ export default function TimesheetPreview({ entries }: TimesheetPreviewProps) {
           <span className="font-medium">{totalHours} hours</span>
         </div>
 
-        {/* Aggregate stats: product split (target 30/10/60) and IP capitalisation (target 68/32) */}
+        {/* Aggregate stats: product split (target 30/10/60) and IP capitalisation
+            (policy 65-72% CapEx / 28-35% OpEx, varying month to month) */}
         <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
             <div className="text-xs font-semibold text-gray-500 uppercase mb-2">
