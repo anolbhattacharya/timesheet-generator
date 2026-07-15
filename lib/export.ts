@@ -151,10 +151,6 @@ export function exportAnalysisToExcel(entries: TimesheetEntry[]): void {
     `Management policy: ${capMinPct}-${capMaxPct}% of AI Lab development effort is capitalised as IP (AASB 138), ${opexMinPct}-${opexMaxPct}% expensed as OpEx. The rate varies month to month within this range. Covers ${rangeLabel}.`,
   ]);
   addRow([]);
-  addRow(['Target Capitalisation Rate (CapEx)', CAPEX_RATIO_MIN, CAPEX_RATIO_MAX]);
-  markPct(1);
-  markPct(2);
-  addRow([]);
 
   addRow(['Hours by Classification']);
   addRow(['Classification', 'Hours', '% of Total']);
