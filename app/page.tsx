@@ -107,7 +107,8 @@ export default function Home() {
               AI Lab Timesheet Generator
             </h1>
             <p className="text-gray-500 mt-1">
-              Generate randomised timesheet entries for the team
+              Generate randomised timesheet entries for the team — split across
+              Spark / Radiate / Ember with IP-capitalisation tagging
             </p>
           </div>
           <button
@@ -176,7 +177,7 @@ export default function Home() {
 
         {/* Footer */}
         <footer className="mt-8 text-center text-sm text-gray-400">
-          AI Lab Team Timesheet Generator v1.1
+          AI Lab Team Timesheet Generator v2.0
         </footer>
       </div>
     </main>

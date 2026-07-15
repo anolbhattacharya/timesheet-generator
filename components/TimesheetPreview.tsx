@@ -34,18 +34,38 @@ export default function TimesheetPreview({ entries }: TimesheetPreviewProps) {
 
   const totalHours = filteredEntries.reduce((sum, e) => sum + e.hours, 0);
 
+  // Aggregate stats over the currently filtered rows.
+  const capexHours = filteredEntries
+    .filter((e) => e.costType === 'CAPEX')
+    .reduce((sum, e) => sum + e.hours, 0);
+  const opexHours = totalHours - capexHours;
+  const pct = (n: number) =>
+    totalHours > 0 ? Math.round((n / totalHours) * 1000) / 10 : 0;
+
+  const projectStats = PROJECTS.map((p) => {
+    const h = filteredEntries
+      .filter((e) => e.projectCode === p.code)
+      .reduce((sum, e) => sum + e.hours, 0);
+    return { name: p.name, code: p.code, hours: h, pct: pct(h) };
+  });
+
   const getProjectColor = (projectCode: string) => {
     switch (projectCode) {
       case 'SPARK':
         return 'bg-spark text-white';
       case 'RADIATE':
         return 'bg-radiate text-white';
-      case 'SYNTHPERSONA':
-        return 'bg-synthpersona text-white';
+      case 'EMBER':
+        return 'bg-ember text-white';
       default:
         return 'bg-gray-500 text-white';
     }
   };
+
+  const getCostTypeBadge = (costType: 'CAPEX' | 'OPEX') =>
+    costType === 'CAPEX'
+      ? 'bg-capex/10 text-capex border border-capex/30'
+      : 'bg-opex/10 text-opex border border-opex/30';
 
   if (entries.length === 0) {
     return (
@@ -132,6 +152,45 @@ export default function TimesheetPreview({ entries }: TimesheetPreviewProps) {
           Showing {filteredEntries.length} of {entries.length} entries |{' '}
           <span className="font-medium">{totalHours} hours</span>
         </div>
+
+        {/* Aggregate stats: product split (target 30/10/60) and IP capitalisation (target 68/32) */}
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <div className="text-xs font-semibold text-gray-500 uppercase mb-2">
+              Product Split
+            </div>
+            <div className="flex flex-wrap gap-3 text-sm">
+              {projectStats.map((s) => (
+                <span key={s.code} className="text-gray-700">
+                  <span
+                    className={`inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle ${getProjectColor(
+                      s.code
+                    )}`}
+                  />
+                  {s.name}: <span className="font-semibold">{s.pct}%</span>{' '}
+                  <span className="text-gray-400">({s.hours}h)</span>
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <div className="text-xs font-semibold text-gray-500 uppercase mb-2">
+              IP Capitalisation (AASB 138)
+            </div>
+            <div className="flex flex-wrap gap-4 text-sm">
+              <span className="text-gray-700">
+                <span className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle bg-capex" />
+                Capitalised: <span className="font-semibold">{pct(capexHours)}%</span>{' '}
+                <span className="text-gray-400">({capexHours}h)</span>
+              </span>
+              <span className="text-gray-700">
+                <span className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle bg-opex" />
+                OpEx: <span className="font-semibold">{pct(opexHours)}%</span>{' '}
+                <span className="text-gray-400">({opexHours}h)</span>
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
@@ -146,6 +205,9 @@ export default function TimesheetPreview({ entries }: TimesheetPreviewProps) {
                 Project
               </th>
               <th className="text-left p-3 font-medium text-gray-600">Task</th>
+              <th className="text-left p-3 font-medium text-gray-600">
+                Cost Type
+              </th>
               <th className="text-right p-3 font-medium text-gray-600">Hours</th>
             </tr>
           </thead>
@@ -166,6 +228,15 @@ export default function TimesheetPreview({ entries }: TimesheetPreviewProps) {
                   </span>
                 </td>
                 <td className="p-3 text-gray-600">{entry.taskDescription}</td>
+                <td className="p-3">
+                  <span
+                    className={`inline-block px-2 py-1 rounded text-xs font-medium ${getCostTypeBadge(
+                      entry.costType
+                    )}`}
+                  >
+                    {entry.costType === 'CAPEX' ? 'Capitalised' : 'OpEx'}
+                  </span>
+                </td>
                 <td className="p-3 text-right font-medium text-gray-800">
                   {entry.hours}h
                 </td>

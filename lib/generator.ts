@@ -1,28 +1,29 @@
 import { format, subDays, isWeekend, parseISO, eachDayOfInterval } from 'date-fns';
-import { TimesheetEntry, EmployeeLeaveMap, DayStatus } from '@/types';
+import {
+  TimesheetEntry,
+  EmployeeLeaveMap,
+  DayStatus,
+  CostType,
+  Employee,
+  Project,
+  TaskCategory,
+} from '@/types';
 import { EMPLOYEES } from './employees';
 import { PROJECTS } from './projects';
 import { isHoliday, getHolidayName } from './holidays';
 
-function shuffleArray<T>(array: T[]): T[] {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
+// Target share of total hours capitalised as intellectual property (AASB 138.57).
+// The remainder (1 - CAPEX_RATIO) is OpEx expensed as incurred.
+export const CAPEX_RATIO = 0.68;
 
 function roundToHalf(num: number): number {
   return Math.round(num * 2) / 2;
 }
 
-function getRandomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function getRandomTask(taskCategories: string[]): string {
-  return taskCategories[Math.floor(Math.random() * taskCategories.length)];
+function getRandomTask(tasks: TaskCategory[], costType: CostType): string {
+  const pool = tasks.filter((t) => t.costType === costType);
+  const list = pool.length > 0 ? pool : tasks;
+  return list[Math.floor(Math.random() * list.length)].description;
 }
 
 function getRandomDailyHours(): number {
@@ -30,6 +31,24 @@ function getRandomDailyHours(): number {
   const minHours = 7.5;
   const maxHours = 14;
   return roundToHalf(minHours + Math.random() * (maxHours - minHours));
+}
+
+// Split a total (a multiple of 0.5) across weights, keeping every part a multiple of
+// 0.5 and guaranteeing the parts sum back to the total (largest-remainder method).
+function splitHoursByWeights(total: number, weights: number[]): number[] {
+  const totalUnits = Math.round(total / 0.5); // work in half-hour units
+  const raw = weights.map((w) => w * totalUnits);
+  const units = raw.map((r) => Math.floor(r));
+  let remainder = totalUnits - units.reduce((a, b) => a + b, 0);
+
+  // Hand out the leftover half-hours to the parts with the largest fractional remainder.
+  const order = raw
+    .map((r, i) => ({ i, frac: r - Math.floor(r) }))
+    .sort((a, b) => b.frac - a.frac);
+  for (let k = 0; remainder > 0; k++, remainder--) {
+    units[order[k % order.length].i] += 1;
+  }
+  return units.map((u) => u * 0.5);
 }
 
 export function getLast15Days(endDate: Date = new Date()): string[] {
@@ -77,70 +96,79 @@ export function isWorkingDay(
   return !status.isWeekend && !status.isHoliday && !status.isLeave;
 }
 
+function makeEntry(
+  employee: Employee,
+  dateStr: string,
+  project: Project,
+  costType: CostType,
+  hours: number
+): TimesheetEntry {
+  return {
+    id: `${employee.id}-${dateStr}-${project.code}-${costType}`,
+    employeeId: employee.id,
+    employeeName: employee.name,
+    date: dateStr,
+    projectCode: project.code,
+    projectName: project.name,
+    taskDescription: getRandomTask(employee.tasks, costType),
+    costType,
+    hours,
+  };
+}
+
 export function generateTimesheet(
   leaveMap: EmployeeLeaveMap,
   dates: string[]
 ): TimesheetEntry[] {
   const entries: TimesheetEntry[] = [];
-  const days = dates;
+  const weights = PROJECTS.map((p) => p.allocationWeight);
+
+  // Running rounding residual so the CAPEX total converges on CAPEX_RATIO across the
+  // whole run rather than rounding independently (and biasing) on each small chunk.
+  let capexCarry = 0;
 
   for (const employee of EMPLOYEES) {
-    for (const dateStr of days) {
+    for (const dateStr of dates) {
       if (!isWorkingDay(dateStr, employee.id, leaveMap)) {
         continue;
       }
 
       const dailyTotal = getRandomDailyHours();
-      let remainingHours = dailyTotal;
-      const shuffledProjects = shuffleArray(PROJECTS);
+      const projectHours = splitHoursByWeights(dailyTotal, weights);
 
-      for (let i = 0; i < shuffledProjects.length; i++) {
-        const project = shuffledProjects[i];
-        let hours: number;
+      PROJECTS.forEach((project, idx) => {
+        const chunk = projectHours[idx];
+        if (chunk <= 0) return;
 
-        if (i === shuffledProjects.length - 1) {
-          // Last project gets remaining hours
-          hours = remainingHours;
-        } else {
-          // Ensure each remaining project gets at least 1 hour
-          const projectsRemaining = shuffledProjects.length - i;
-          const maxHoursForProject = Math.min(
-            dailyTotal * 0.6, // Max 60% of daily total for one project
-            remainingHours - (projectsRemaining - 1)
-          );
-          const minHours = 1;
+        // Divide the project's hours into CAPEX / OPEX, carrying the residual forward.
+        const idealCapex = chunk * CAPEX_RATIO + capexCarry;
+        const maxHalves = Math.round(chunk / 0.5);
+        let capexHalves = Math.round(idealCapex / 0.5);
+        if (capexHalves < 0) capexHalves = 0;
+        if (capexHalves > maxHalves) capexHalves = maxHalves;
 
-          if (maxHoursForProject <= minHours) {
-            hours = minHours;
-          } else {
-            hours = roundToHalf(minHours + Math.random() * (maxHoursForProject - minHours));
-          }
+        const capexHours = capexHalves * 0.5;
+        capexCarry = idealCapex - capexHours;
+        const opexHours = chunk - capexHours;
+
+        if (capexHours > 0) {
+          entries.push(makeEntry(employee, dateStr, project, 'CAPEX', capexHours));
         }
-
-        remainingHours -= hours;
-
-        const entry: TimesheetEntry = {
-          id: `${employee.id}-${dateStr}-${project.code}`,
-          employeeId: employee.id,
-          employeeName: employee.name,
-          date: dateStr,
-          projectCode: project.code,
-          projectName: project.name,
-          taskDescription: getRandomTask(employee.taskCategories),
-          hours: hours,
-        };
-
-        entries.push(entry);
-      }
+        if (opexHours > 0) {
+          entries.push(makeEntry(employee, dateStr, project, 'OPEX', opexHours));
+        }
+      });
     }
   }
 
-  // Sort by date, then employee, then project
+  // Sort by date, then employee, then project, then cost type
   entries.sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
     if (a.employeeName !== b.employeeName)
       return a.employeeName.localeCompare(b.employeeName);
-    return a.projectName.localeCompare(b.projectName);
+    if (a.projectName !== b.projectName)
+      return a.projectName.localeCompare(b.projectName);
+    return a.costType.localeCompare(b.costType);
   });
 
   return entries;
@@ -169,5 +197,14 @@ export function getTotalHoursByProject(
 ): number {
   return entries
     .filter((e) => e.projectCode === projectCode)
+    .reduce((sum, e) => sum + e.hours, 0);
+}
+
+export function getTotalHoursByCostType(
+  entries: TimesheetEntry[],
+  costType: CostType
+): number {
+  return entries
+    .filter((e) => e.costType === costType)
     .reduce((sum, e) => sum + e.hours, 0);
 }

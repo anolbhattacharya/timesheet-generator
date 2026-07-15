@@ -1,15 +1,28 @@
+// Cost classification for IP-capitalisation accounting (AASB 138):
+// CAPEX  = development-phase work eligible for capitalisation as an intangible asset (para 57)
+// OPEX   = maintenance / research-phase work expensed as incurred (para 54-56, 68)
+export type CostType = 'CAPEX' | 'OPEX';
+
+export interface TaskCategory {
+  description: string;
+  costType: CostType;
+}
+
 export interface Employee {
   id: string;
   name: string;
   role: string;
+  location: string;
   skills: string[];
-  taskCategories: string[];
+  tasks: TaskCategory[];
 }
 
 export interface Project {
   code: string;
   name: string;
   description: string;
+  // Share of each person's time allocated to this product (0-1). Weights sum to 1.
+  allocationWeight: number;
 }
 
 export interface LeaveRecord {
@@ -25,6 +38,7 @@ export interface TimesheetEntry {
   projectCode: string;
   projectName: string;
   taskDescription: string;
+  costType: CostType;
   hours: number;
 }
 
