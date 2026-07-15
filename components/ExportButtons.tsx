@@ -3,7 +3,12 @@
 import { useState } from 'react';
 import { TimesheetEntry } from '@/types';
 import { EMPLOYEES } from '@/lib/employees';
-import { exportToCSV, exportToExcel, exportEmployeeToExcel } from '@/lib/export';
+import {
+  exportToCSV,
+  exportToExcel,
+  exportEmployeeToExcel,
+  exportAnalysisToExcel,
+} from '@/lib/export';
 
 interface ExportButtonsProps {
   entries: TimesheetEntry[];
@@ -18,6 +23,10 @@ export default function ExportButtons({ entries }: ExportButtonsProps) {
 
   const handleExportExcel = () => {
     exportToExcel(entries);
+  };
+
+  const handleExportAnalysis = () => {
+    exportAnalysisToExcel(entries);
   };
 
   const handleExportEmployee = (employeeId: string, employeeName: string) => {
@@ -43,6 +52,15 @@ export default function ExportButtons({ entries }: ExportButtonsProps) {
         className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
       >
         Download Excel
+      </button>
+
+      <button
+        onClick={handleExportAnalysis}
+        disabled={isDisabled}
+        className="px-4 py-2 bg-capex text-white rounded hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+        title="Tagged, sorted and summarised CapEx (IP) vs OpEx workbook"
+      >
+        Download CapEx/OpEx Analysis
       </button>
 
       <div className="relative">

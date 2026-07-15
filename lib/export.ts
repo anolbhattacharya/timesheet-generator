@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx';
 import { TimesheetEntry } from '@/types';
 import { EMPLOYEES } from './employees';
 import { PROJECTS } from './projects';
+import { CAPEX_RATIO } from './generator';
 
 interface SummaryRow {
   Employee: string;
@@ -90,6 +91,178 @@ function generateCapitalisationSummary(entries: TimesheetEntry[]) {
   rows.push(buildRow('TOTAL', entries));
 
   return rows;
+}
+
+// Short label used in the tagged "Type" column, matching the finance workbook.
+function typeLabel(costType: 'CAPEX' | 'OPEX'): 'CapEx' | 'OpEx' {
+  return costType === 'CAPEX' ? 'CapEx' : 'OpEx';
+}
+
+function sortEntries(a: TimesheetEntry, b: TimesheetEntry): number {
+  if (a.date !== b.date) return a.date.localeCompare(b.date);
+  if (a.employeeName !== b.employeeName)
+    return a.employeeName.localeCompare(b.employeeName);
+  if (a.projectName !== b.projectName)
+    return a.projectName.localeCompare(b.projectName);
+  return a.costType.localeCompare(b.costType); // CAPEX before OPEX
+}
+
+function sumHours(list: TimesheetEntry[]): number {
+  return round2(list.reduce((s, e) => s + e.hours, 0));
+}
+
+/**
+ * Finance-ready workbook that automatically tags, sorts and summarises every entry
+ * by CapEx (capitalised IP) vs OpEx. Mirrors the AI Labs FY26 analysis format:
+ *   1. "CapEx vs OpEx" — classification / project / task breakdowns with percentages
+ *   2. "Split"         — all entries tagged with a Type column, sorted
+ *   3. "Raw Data"      — the same entries untagged (plain timesheet)
+ *   4. "Summary"       — Employee x Product hours
+ */
+export function exportAnalysisToExcel(entries: TimesheetEntry[]): void {
+  const wb = XLSX.utils.book_new();
+  const sorted = [...entries].sort(sortEntries);
+
+  const total = sumHours(entries);
+  const capex = sumHours(entries.filter((e) => e.costType === 'CAPEX'));
+  const opex = sumHours(entries.filter((e) => e.costType === 'OPEX'));
+
+  const dates = entries.map((e) => e.date).sort();
+  const rangeLabel =
+    dates.length > 0 ? `${dates[0]} to ${dates[dates.length - 1]}` : 'no data';
+  const policyPct = Math.round(CAPEX_RATIO * 1000) / 10; // e.g. 68
+  const opexPolicyPct = Math.round((1 - CAPEX_RATIO) * 1000) / 10; // e.g. 32
+
+  // ---------- Sheet 1: CapEx vs OpEx analysis ----------
+  const aoa: (string | number)[][] = [];
+  const pctCells: string[] = [];
+  const addRow = (row: (string | number)[]) => aoa.push(row);
+  // mark a column in the row just pushed as a percentage-formatted cell
+  const markPct = (col: number) =>
+    pctCells.push(XLSX.utils.encode_cell({ r: aoa.length - 1, c: col }));
+
+  addRow([
+    `AI Lab Timesheet — CapEx (IP) vs OpEx Analysis (${policyPct} / ${opexPolicyPct} Capitalisation Policy)`,
+  ]);
+  addRow([
+    `Management policy: ${policyPct}% of AI Lab development effort is capitalised as IP (AASB 138), ${opexPolicyPct}% expensed as OpEx. Covers ${rangeLabel}.`,
+  ]);
+  addRow([]);
+  addRow(['Target Capitalisation Rate', CAPEX_RATIO]);
+  markPct(1);
+  addRow([]);
+
+  addRow(['Hours by Classification']);
+  addRow(['Classification', 'Hours', '% of Total']);
+  addRow(['CapEx (IP)', capex, total > 0 ? capex / total : 0]);
+  markPct(2);
+  addRow(['OpEx', opex, total > 0 ? opex / total : 0]);
+  markPct(2);
+  addRow(['TOTAL', total, total > 0 ? 1 : 0]);
+  markPct(2);
+  addRow([]);
+  addRow([]);
+
+  addRow(['Hours by Project and Classification']);
+  addRow(['Project', 'CapEx (IP)', 'OpEx', 'Total', 'CapEx %']);
+  for (const project of PROJECTS) {
+    const projEntries = entries.filter((e) => e.projectCode === project.code);
+    const pCap = sumHours(projEntries.filter((e) => e.costType === 'CAPEX'));
+    const pOpex = sumHours(projEntries.filter((e) => e.costType === 'OPEX'));
+    const pTotal = round2(pCap + pOpex);
+    addRow([project.name, pCap, pOpex, pTotal, pTotal > 0 ? pCap / pTotal : 0]);
+    markPct(4);
+  }
+  addRow(['TOTAL', capex, opex, total, total > 0 ? capex / total : 0]);
+  markPct(4);
+  addRow([]);
+  addRow([]);
+
+  addRow(['Hours by Task and Classification']);
+  addRow(['Task', 'CapEx (IP)', 'OpEx', 'Total']);
+  const taskNames = Array.from(
+    new Set(entries.map((e) => e.taskDescription))
+  ).sort();
+  for (const task of taskNames) {
+    const taskEntries = entries.filter((e) => e.taskDescription === task);
+    const tCap = sumHours(taskEntries.filter((e) => e.costType === 'CAPEX'));
+    const tOpex = sumHours(taskEntries.filter((e) => e.costType === 'OPEX'));
+    addRow([task, tCap, tOpex, round2(tCap + tOpex)]);
+  }
+  addRow(['TOTAL', capex, opex, total]);
+
+  const analysisWs = XLSX.utils.aoa_to_sheet(aoa);
+  pctCells.forEach((addr) => {
+    if (analysisWs[addr]) analysisWs[addr].z = '0.0%';
+  });
+  analysisWs['!cols'] = [
+    { wch: 44 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+  ];
+  XLSX.utils.book_append_sheet(wb, analysisWs, 'CapEx vs OpEx');
+
+  // ---------- Sheet 2: Split (tagged + sorted) ----------
+  const splitRows = sorted.map((e) => ({
+    Date: e.date,
+    Employee: e.employeeName,
+    Project: e.projectName,
+    'Project Code': e.projectCode,
+    Task: e.taskDescription,
+    Hours: e.hours,
+    Type: typeLabel(e.costType),
+  }));
+  const splitWs = XLSX.utils.json_to_sheet(splitRows);
+  splitWs['!cols'] = [
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 42 },
+    { wch: 8 },
+    { wch: 8 },
+  ];
+  XLSX.utils.book_append_sheet(wb, splitWs, 'Split');
+
+  // ---------- Sheet 3: Raw Data (untagged) ----------
+  const rawRows = sorted.map((e) => ({
+    Date: e.date,
+    Employee: e.employeeName,
+    Project: e.projectName,
+    'Project Code': e.projectCode,
+    Task: e.taskDescription,
+    Hours: e.hours,
+  }));
+  const rawWs = XLSX.utils.json_to_sheet(rawRows);
+  rawWs['!cols'] = [
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 42 },
+    { wch: 8 },
+  ];
+  XLSX.utils.book_append_sheet(wb, rawWs, 'Raw Data');
+
+  // ---------- Sheet 4: Summary (Employee x Product) ----------
+  const summary = generateProjectSummary(entries);
+  const summaryWs = XLSX.utils.json_to_sheet(summary, {
+    header: ['Employee', 'Total Hours', ...PROJECTS.map((p) => p.name)],
+  });
+  summaryWs['!cols'] = [
+    { wch: 14 },
+    { wch: 12 },
+    ...PROJECTS.map(() => ({ wch: 12 })),
+  ];
+  XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  downloadBlob(blob, 'timesheet-capex-opex-analysis.xlsx');
 }
 
 export function exportToCSV(entries: TimesheetEntry[]): void {
