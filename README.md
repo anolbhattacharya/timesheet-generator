@@ -21,7 +21,7 @@ Three active products. Each person's time is split across them:
 |---------|-------------|-----------|
 | Spark | AI Search Discovery Platform | 30% |
 | Radiate | GEO Optimization Tool | 10% |
-| Ember | Product in active development | 60% |
+| Ember | Alpha release — tested by internal users | 60% |
 
 Weights live in [`lib/projects.ts`](lib/projects.ts) (`allocationWeight`). A future
 product will be added later and is intentionally not modelled yet.

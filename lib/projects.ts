@@ -19,7 +19,7 @@ export const PROJECTS: Project[] = [
   {
     code: 'EMBER',
     name: 'Ember',
-    description: 'Product in active development',
+    description: 'Alpha release — tested by internal users',
     allocationWeight: 0.6,
   },
 ];
